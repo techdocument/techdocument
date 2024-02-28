@@ -1,0 +1,47 @@
+name: Deploy Lambda and S3
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 0.15.0
+
+      - name: Running terraform Plan
+        run: |
+        terraform init -backend-config="key=lambda-state/terraform.tfstate"
+        terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+        terraform init -backend-config="key=lambda-state/terraform.tfstate"
+        terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Debug S3 Upload
+        run: |
+          echo "Current Directory: $(pwd)"
+          echo "List Files: $(ls)"
+          aws s3 cp module/lambda_function/lambda_function.zip s3://sree-buck-lambda-app/
+
+      - name: Upload Lambda Code to S3
+        run: aws s3 cp module/lambda_function/lambda_function.zip s3://sree-buck-lambda-app/
+
+      - name: Terraform Apply (Update Lambda Code)
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
